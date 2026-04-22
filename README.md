@@ -5,6 +5,12 @@ into **clear, human-readable explanations**.
 
 This project is intentionally designed to feel like *internal tooling at a payments or marketplace platform*.
 
+## The Problem
+**Stripe Connect doesn't provide a single "account status" field.** Account health is scattered across multiple independent API signals that must be interpreted together. This leads to fragile conditional logic, support escalations, and confusing seller experiences.
+
+## The Solution
+A deterministic interpretation layer that turns opaque API states into actionable explanations, helping platforms understand account issues in under 10 seconds.
+
 ---
 
 ## Why this Exists

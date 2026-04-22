@@ -12,7 +12,7 @@ import type { AccountState, AccountSnapshot, AccountIssue, Severity } from '../t
 
 const SEP = chalk.dim('─'.repeat(60))
 
-function severityColor(s: Severity): chalk.ChalkFunction {
+function severityColor(s: Severity) {
   return s === 'high' ? chalk.red : s === 'medium' ? chalk.yellow : chalk.cyan
 }
 

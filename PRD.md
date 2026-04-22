@@ -1,6 +1,13 @@
 # Product Requirements Document (PRD)
 ## Stripe Account Debugger
 
+## Executive Summary
+**Problem**: Stripe Connect doesn't provide a single "account status" field. Account health is scattered across multiple API signals, leading to fragile logic, support escalations, and poor seller experiences.
+
+**Solution**: A developer-facing diagnostic tool that deterministically interprets Stripe account data into clear, actionable explanations.
+
+**Impact**: Reduces support escalations, improves seller experience, and centralizes account status logic for maintainable platforms.
+
 ---
 
 ## 1. Overview
