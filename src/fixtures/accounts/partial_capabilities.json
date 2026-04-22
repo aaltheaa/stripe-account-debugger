@@ -1,0 +1,17 @@
+{
+  "payouts_enabled": true,
+  "details_submitted": true,
+  "disabled_reason": null,
+  "requirements": {
+    "currently_due": [],
+    "eventually_due": ["company.tax_id"],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "capabilities": {
+    "card_payments": "active",
+    "transfers": "active",
+    "us_bank_account_ach_payments": "inactive",
+    "bank_transfer_payments": "pending"
+  }
+}

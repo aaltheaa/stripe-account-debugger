@@ -1,0 +1,30 @@
+{
+  "payouts_enabled": false,
+  "details_submitted": false,
+  "disabled_reason": null,
+  "requirements": {
+    "currently_due": [
+      "business_type",
+      "individual.first_name",
+      "individual.last_name",
+      "individual.dob.day",
+      "individual.dob.month",
+      "individual.dob.year",
+      "individual.email",
+      "tos_acceptance.date",
+      "tos_acceptance.ip"
+    ],
+    "eventually_due": [
+      "business_type",
+      "individual.first_name",
+      "individual.last_name",
+      "individual.id_number"
+    ],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "capabilities": {
+    "card_payments": "inactive",
+    "transfers": "inactive"
+  }
+}

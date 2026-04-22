@@ -1,0 +1,15 @@
+{
+  "payouts_enabled": false,
+  "details_submitted": true,
+  "disabled_reason": "requirements.past_due",
+  "requirements": {
+    "currently_due": ["individual.verification.document"],
+    "eventually_due": ["individual.verification.document"],
+    "past_due": ["individual.verification.document"],
+    "pending_verification": []
+  },
+  "capabilities": {
+    "card_payments": "active",
+    "transfers": "inactive"
+  }
+}
