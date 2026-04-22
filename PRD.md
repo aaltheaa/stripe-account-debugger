@@ -159,11 +159,281 @@ Fixtures:
 - Represent real‑world Stripe Connect scenarios
 - Live in `src/fixtures/accounts/`
 
-### 8.2 --list-fixtures Extension
-npx tsx src/index.ts --list-fixtures
+### 8.2 CLI Flags
 
-#### Usage
+| Flag | Description |
+|------|-------------|
+| `--fixture <name>` | Run against a local fixture instead of a live Stripe account |
+| `--list-fixtures` | Print all available fixture names and their one-line descriptions |
+| `--explain` | Show the normalized snapshot used for analysis (useful for debugging) |
+| `--json` | Output machine-readable JSON instead of formatted terminal output |
+
+#### Example usage
 
 ```bash
+# List all available demo scenarios
+npx tsx src/index.ts --list-fixtures
+
+# Run a specific fixture
 npx tsx src/index.ts --fixture past_due_blocked
-``
+
+# Run with verbose snapshot output
+npx tsx src/index.ts --fixture onboarding_incomplete --explain
+
+# Machine-readable output (for CI / automation)
+npx tsx src/index.ts --fixture under_review --json
+
+# Live mode (requires STRIPE_SECRET_KEY)
+export STRIPE_SECRET_KEY=sk_test_...
+npx tsx src/index.ts acct_1ExampleXXX
+```
+
+---
+
+### 8.3 Fixture Catalog
+
+Fixtures live in `src/fixtures/accounts/` and represent distinct, realistic Stripe Connect states. Each is a minimal valid JSON object that matches the `AccountSnapshot` schema.
+
+---
+
+#### `operational`
+
+**State:** Fully active account — all clear.
+
+```json
+{
+  "payouts_enabled": true,
+  "details_submitted": true,
+  "disabled_reason": null,
+  "requirements": { "currently_due": [], "eventually_due": [], "past_due": [], "pending_verification": [] },
+  "capabilities": { "card_payments": "active", "transfers": "active" }
+}
+```
+
+- **Primary status:** `operational`
+- **Issues detected:** none
+- **Use case:** baseline / happy path demo
+
+---
+
+#### `needs_information`
+
+**State:** Account is live but has fields that will become required.
+
+```json
+{
+  "payouts_enabled": true,
+  "details_submitted": true,
+  "disabled_reason": null,
+  "requirements": {
+    "currently_due": ["business_profile.url"],
+    "eventually_due": ["business_profile.url", "individual.id_number"],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "capabilities": { "card_payments": "active", "transfers": "active" }
+}
+```
+
+- **Primary status:** `requirements_due` (medium severity)
+- **Issues detected:** `requirements_due` + `requirements_eventually_due`
+- **Key signals:** `currently_due` non-empty; `payouts_enabled: true` (not yet blocked)
+- **Use case:** demonstrates non-blocking requirements — seller needs to act, but nothing is broken yet
+
+---
+
+#### `past_due_blocked`
+
+**State:** Hard-blocked after a missed compliance deadline.
+
+```json
+{
+  "payouts_enabled": false,
+  "details_submitted": true,
+  "disabled_reason": "requirements.past_due",
+  "requirements": {
+    "currently_due": ["individual.verification.document"],
+    "eventually_due": ["individual.verification.document"],
+    "past_due": ["individual.verification.document"],
+    "pending_verification": []
+  },
+  "capabilities": { "card_payments": "active", "transfers": "inactive" }
+}
+```
+
+- **Primary status:** `past_due` (high severity)
+- **Issues detected:** `past_due` + `partial_capabilities`
+- **Key signals:** `disabled_reason: "requirements.past_due"`, `past_due` non-empty, `payouts_enabled: false`
+- **Use case:** most common urgent support escalation — seller missed a document deadline
+
+---
+
+#### `under_review`
+
+**State:** Stripe has triggered a manual review; no seller action required.
+
+```json
+{
+  "payouts_enabled": false,
+  "details_submitted": true,
+  "disabled_reason": "under_review",
+  "requirements": {
+    "currently_due": [],
+    "eventually_due": [],
+    "past_due": [],
+    "pending_verification": ["individual.verification.document"]
+  },
+  "capabilities": { "card_payments": "active", "transfers": "inactive" }
+}
+```
+
+- **Primary status:** `under_review` (medium severity)
+- **Issues detected:** `under_review`
+- **Key signals:** `disabled_reason: "under_review"`, `pending_verification` non-empty
+- **Actionable:** `false` — seller cannot unblock this themselves
+- **Use case:** demonstrates the difference between actionable vs. non-actionable states
+
+---
+
+#### `partial_capabilities`
+
+**State:** Core payments active; additional capabilities inactive or pending.
+
+```json
+{
+  "payouts_enabled": true,
+  "details_submitted": true,
+  "disabled_reason": null,
+  "requirements": {
+    "currently_due": [],
+    "eventually_due": ["company.tax_id"],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "capabilities": {
+    "card_payments": "active",
+    "transfers": "active",
+    "us_bank_account_ach_payments": "inactive",
+    "bank_transfer_payments": "pending"
+  }
+}
+```
+
+- **Primary status:** `partial_capabilities` (medium severity)
+- **Issues detected:** `partial_capabilities` + `requirements_eventually_due`
+- **Key signals:** mix of `active`, `inactive`, and `pending` capabilities
+- **Use case:** marketplace with ACH or bank transfer enabled but not yet approved
+
+---
+
+#### `onboarding_incomplete`
+
+**State:** Account never completed onboarding — no capabilities will be enabled.
+
+```json
+{
+  "payouts_enabled": false,
+  "details_submitted": false,
+  "disabled_reason": null,
+  "requirements": {
+    "currently_due": [
+      "business_type", "individual.first_name", "individual.last_name",
+      "individual.dob.day", "individual.dob.month", "individual.dob.year",
+      "individual.email", "tos_acceptance.date", "tos_acceptance.ip"
+    ],
+    "eventually_due": [
+      "business_type", "individual.first_name", "individual.last_name", "individual.id_number"
+    ],
+    "past_due": [],
+    "pending_verification": []
+  },
+  "capabilities": { "card_payments": "inactive", "transfers": "inactive" }
+}
+```
+
+- **Primary status:** `setup_incomplete` (high severity)
+- **Issues detected:** `setup_incomplete` + `requirements_due` + `requirements_eventually_due`
+- **Key signals:** `details_submitted: false` is the root signal; all else follows from it
+- **Use case:** new seller who started onboarding but never finished
+
+---
+
+## 9. Issue Code Reference
+
+All possible `code` values returned in `AccountState.issues`:
+
+| Code | Severity | Actionable | Description |
+|------|----------|------------|-------------|
+| `setup_incomplete` | high | yes | `details_submitted` is false — onboarding not finished |
+| `past_due` | high | yes | Requirements past their deadline; account is blocked |
+| `rejected` | high | no | Stripe rejected the account (`disabled_reason` starts with `rejected.`) |
+| `payouts_disabled` | high | no | `payouts_enabled` is false with no more specific explanation |
+| `all_capabilities_inactive` | high | no | No capabilities are active; account can't process anything |
+| `requirements_due` | medium | yes | Fields in `currently_due` that must be resolved soon |
+| `under_review` | medium | no | Stripe is reviewing the account; seller can't act |
+| `partial_capabilities` | medium | no | Some capabilities active, some inactive |
+| `requirements_eventually_due` | low | yes | Fields in `eventually_due` not yet urgent |
+
+---
+
+## 10. Internal Data Model
+
+### `AccountSnapshot` (normalized input)
+
+All analysis operates on this type, not the raw Stripe response. Snapshots are
+either loaded from fixtures or produced by `adaptStripeAccount()` from a live API call.
+
+```typescript
+interface AccountSnapshot {
+  payouts_enabled:   boolean
+  details_submitted: boolean
+  disabled_reason:   string | null
+  requirements: {
+    currently_due:      string[]
+    eventually_due:     string[]
+    past_due:           string[]
+    pending_verification: string[]
+  }
+  capabilities: Record<string, 'active' | 'inactive' | 'pending' | 'unrequested'>
+}
+```
+
+### `AccountIssue` (detected problem)
+
+```typescript
+interface AccountIssue {
+  code:       string     // machine-readable issue identifier
+  severity:   'high' | 'medium' | 'low'
+  title:      string     // short human label
+  message:    string     // plain-English explanation
+  actionable: boolean    // can the seller or platform resolve this?
+  fields?:    string[]   // relevant Stripe requirement field names
+}
+```
+
+### `AccountState` (analysis result)
+
+```typescript
+interface AccountState {
+  primaryStatus: string        // most severe issue code, or 'operational'
+  issues:        AccountIssue[] // all detected issues, sorted by severity desc
+}
+```
+
+---
+
+## 11. State Mapping Logic
+
+All interpretation logic lives in `src/analysis/stateMapping.ts`. The pipeline is:
+
+1. **Normalize** raw Stripe data → `AccountSnapshot` (via Zod schema)
+2. **Detect** all applicable issues (8 detectors run in order)
+3. **Rank** issues by severity using `{ high: 3, medium: 2, low: 1 }`
+4. **Select** the highest-ranked issue as `primaryStatus`
+5. **Return** the full `AccountState` with all issues attached
+
+Detection order matters for deduplication: `past_due` suppresses `requirements_due`
+for the same fields; `setup_incomplete` suppresses `all_capabilities_inactive`.
+
+No issue detector has side effects. The function is pure and deterministic —
+the same snapshot always produces the same output.
